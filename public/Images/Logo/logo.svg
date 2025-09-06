@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="160" viewBox="0 0 512 160" role="img" aria-labelledby="title desc">
+  <title id="title">Bazario Logo</title>
+  <desc id="desc">Shopping bag icon with letter B and the text Bazario</desc>
+
+  <!-- Bag body -->
+  <rect x="10" y="30" width="100" height="100" rx="14" ry="14" fill="#1DA1F2"/>
+
+  <!-- Handle -->
+  <path d="M30,40c0-20 20-30 30-30s30,10 30,30" 
+        fill="none" stroke="#F7941D" stroke-width="10" stroke-linecap="round"/>
+
+  <!-- Inner circle (planet/letter base) -->
+  <circle cx="60" cy="80" r="28" fill="white"/>
+
+  <!-- Latitude stripes -->
+  <path d="M45 70h30M43 80h34M45 90h30" stroke="#1DA1F2" stroke-width="3" stroke-linecap="round"/>
+
+  <!-- Letter B -->
+  <text x="48" y="92" font-size="42" font-family="Arial, Helvetica, sans-serif" font-weight="700" fill="#0f172a">B</text>
+
+  <!-- Text -->
+  <text x="140" y="100" font-size="64" font-family="Arial, Helvetica, sans-serif" font-weight="700" fill="#0f172a">Bazario</text>
+</svg>
