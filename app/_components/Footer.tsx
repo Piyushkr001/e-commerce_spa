@@ -2,50 +2,14 @@
 
 import Link from 'next/link'
 import Image from 'next/image'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
-import { Facebook, Instagram, Twitter, Youtube, Mail } from 'lucide-react'
+import { Facebook, Instagram, Twitter, Youtube } from 'lucide-react'
 import React from 'react'
 
 export default function Footer() {
   return (
     <footer className="w-full border-t bg-gradient-to-br from-sky-50 via-white to-blue-50 dark:from-stone-900 dark:via-stone-900 dark:to-stone-800">
-      {/* Top: Newsletter */}
-      <div className="max-w-7xl mx-auto px-4 md:px-6 py-10">
-        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-          <div className="flex-1">
-            <h3 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
-              Join the Bazario newsletter
-            </h3>
-            <p className="text-slate-600 dark:text-slate-300 mt-1">
-              Get fresh deals and product drops—no spam, ever.
-            </p>
-          </div>
-
-          <form
-            onSubmit={(e) => e.preventDefault()}
-            className="flex w-full md:w-auto gap-3"
-            aria-label="Newsletter subscription"
-          >
-            <div className="relative flex-1 min-w-[240px]">
-              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
-              <Input
-                type="email"
-                placeholder="you@example.com"
-                className="pl-9 h-11 rounded-xl"
-                required
-              />
-            </div>
-            <Button type="submit" className="h-11 rounded-xl px-6">
-              Subscribe
-            </Button>
-          </form>
-        </div>
-      </div>
-
-      <Separator className="opacity-50" />
-
+      
       {/* Middle: Links */}
       <div className="max-w-7xl mx-auto px-4 md:px-6 py-10">
         <div className="flex flex-wrap gap-10 md:gap-14">
@@ -82,16 +46,14 @@ export default function Footer() {
 
           <FooterCol title="Support">
             <FooterLink href="/help">Help Center</FooterLink>
-            <FooterLink href="/shipping">Shipping & Delivery</FooterLink>
-            <FooterLink href="/returns">Returns & Refunds</FooterLink>
             <FooterLink href="/contact">Contact Us</FooterLink>
+            <FooterLink href="/">Home</FooterLink>
           </FooterCol>
 
           <FooterCol title="Company">
             <FooterLink href="/about">About</FooterLink>
-            <FooterLink href="/careers">Careers</FooterLink>
-            <FooterLink href="/press">Press</FooterLink>
-            <FooterLink href="/blog">Blog</FooterLink>
+            <FooterLink href="/shopping">Shop</FooterLink>
+            <FooterLink href="/cart">Cart</FooterLink>
           </FooterCol>
         </div>
       </div>

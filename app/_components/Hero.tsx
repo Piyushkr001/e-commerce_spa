@@ -22,17 +22,19 @@ export default function Hero() {
                     {/* Buttons */}
                     <div className="flex flex-wrap gap-4 mt-4">
                         <Link href='/shopping'>
-                            <Button size="lg" className="px-6 py-3 rounded-xl">
+                            <Button size="lg" className="px-6 py-3 cursor-pointer rounded-xl">
                                 Start Shopping
                             </Button>
                         </Link>
-                        <Button
-                            size="lg"
-                            variant="outline"
-                            className="px-6 py-3 rounded-xl border-2"
-                        >
-                            Learn More
-                        </Button>
+                        <Link href='/learn-more'>
+                            <Button
+                                size="lg"
+                                variant="outline"
+                                className="px-6 py-3 cursor-pointer rounded-xl border-2"
+                            >
+                                Learn More
+                            </Button>
+                        </Link>
                     </div>
                 </div>
 

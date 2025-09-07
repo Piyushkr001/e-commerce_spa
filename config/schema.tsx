@@ -56,3 +56,19 @@ export const cartLines = pgTable("cart_lines", {
   byUser: index("cart_user_idx").on(t.userId),
   byItem: index("cart_item_idx").on(t.itemId),
 }));
+
+
+export const contactMessages = pgTable("contact_messages", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  name: varchar("name", { length: 120 }).notNull(),
+  email: varchar("email", { length: 255 }).notNull(),
+  phone: varchar("phone", { length: 32 }),
+  subject: varchar("subject", { length: 200 }).notNull(),
+  message: text("message").notNull(),
+  status: varchar("status", { length: 20 }).notNull().default("new"), // new | read | closed
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  handledAt: timestamp("handled_at", { withTimezone: true }),
+});
+
+export type InsertContactMessage = typeof contactMessages.$inferInsert;
+export type SelectContactMessage = typeof contactMessages.$inferSelect;
