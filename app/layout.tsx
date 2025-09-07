@@ -6,6 +6,7 @@ import Footer from "./_components/Footer"
 import { ThemeProvider } from "@/components/theme-provider"
 import { GoogleOAuthProvider } from "@react-oauth/google"
 import { Toaster } from "@/components/ui/sonner"
+import { Suspense } from "react" // 👈 add this
 
 const ubuntu = Ubuntu_Sans({
   subsets: ["latin"],
@@ -20,7 +21,7 @@ export const metadata: Metadata = {
 export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  const clientId = process.env.GOOGLE_CLIENT_ID || ""
+  const clientId = process.env.GOOGLE_CLIENT_ID || "" // public identifier is safe to serialize
 
   return (
     <html lang="en" suppressHydrationWarning>
@@ -34,7 +35,10 @@ export default function RootLayout({
             <div className="min-h-screen flex flex-col">
               <Navbar />
               <main id="main" className="flex-1">
-                {children}
+                {/* 👇 Global Suspense boundary */}
+                <Suspense fallback={<div className="p-6 text-center">Loading…</div>}>
+                  {children}
+                </Suspense>
               </main>
               <Footer />
             </div>
