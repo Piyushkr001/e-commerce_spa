@@ -70,5 +70,40 @@ export const contactMessages = pgTable("contact_messages", {
   handledAt: timestamp("handled_at", { withTimezone: true }),
 });
 
+export const orders = pgTable("orders", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: text("user_id"), // nullable for guest
+  email: text("email").notNull(),
+  name: text("name").notNull(),
+  phone: text("phone"),
+  addressLine1: text("address_line1").notNull(),
+  addressLine2: text("address_line2"),
+  city: text("city").notNull(),
+  state: text("state").notNull(),
+  postalCode: text("postal_code").notNull(),
+  country: text("country").notNull().default("India"),
+  subtotal: integer("subtotal").notNull(),
+  shipping: integer("shipping").notNull().default(0),
+  total: integer("total").notNull(),
+  currency: text("currency").notNull().default("INR"),
+  status: text("status").notNull().default("pending"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+  paymentMethod: text("payment_method").notNull().default("cod"),
+  paymentStatus: text("payment_status").notNull().default("pending"),
+  paymentRef: text("payment_ref"),
+});
+
+export const orderLines = pgTable("order_lines", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  orderId: uuid("order_id").notNull().references(() => orders.id, { onDelete: "cascade" }),
+  itemId: uuid("item_id").notNull().references(() => items.id),
+  title: text("title").notNull(),
+  price: integer("price").notNull(),          // minor units (INR paise not used here)
+  currency: text("currency").notNull().default("INR"),
+  qty: integer("qty").notNull(),
+  imageUrl: text("image_url"),
+});
+
 export type InsertContactMessage = typeof contactMessages.$inferInsert;
 export type SelectContactMessage = typeof contactMessages.$inferSelect;

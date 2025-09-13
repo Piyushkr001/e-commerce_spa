@@ -15,6 +15,7 @@ const menuItems = [
   { name: 'About', link: '/about' },
   { name: 'Shop', link: '/shopping' },
   { name: 'Cart', link: '/cart' },
+  { name: 'Orders', link: '/orderhistory' },
 ]
 
 export default function Navbar() {

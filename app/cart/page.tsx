@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable @typescript-eslint/ban-ts-comment */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable react-hooks/exhaustive-deps */
@@ -6,6 +7,7 @@
 import Image from "next/image"
 import Link from "next/link"
 import { useEffect, useMemo, useState, useCallback } from "react"
+import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 
 import { useCart } from "@/store/cart"
@@ -28,9 +30,9 @@ function formatCurrency(amount: number | string, currency = "INR") {
   }).format(safe)
 }
 
-// ---------- shapes for server cart ----------
+// ---------- server cart shapes ----------
 type ServerLine = {
-  id: string           // cart line id (server row id)
+  id: string
   itemId: string
   title: string
   price: number
@@ -48,44 +50,67 @@ type ServerSnapshot = {
   subtotalDisplay: string
 }
 
-// ===================================================
-// CartPage — uses server cart if JWT token is present
-// ===================================================
-export default function CartPage() {
-  // local cart store (existing)
-  const {
-    lines: localLines,
-    setQty: localSetQty,
-    remove: localRemove,
-    clear: localClear,
-    subtotal: localSubtotal,
-  } = useCart()
+const CART_STORAGE_KEY = "bazario-cart"
 
-  // token & server snapshot
+export default function CartPage() {
+  const router = useRouter()
+
+  // local store only used for server sync/hardClear; NOT used to render when logged out
+  const { clear: localClear } = useCart()
+
   const [token, setToken] = useState<string>("")
   const [serverSnap, setServerSnap] = useState<ServerSnapshot | null>(null)
   const [mounted, setMounted] = useState(false)
 
-  // derive mode from token (no hook conditionals)
   const serverMode = token.length > 0
 
-  // read token once on mount
+  // read token once; when logged out, nuke any old local cart
   useEffect(() => {
-    const t =
-      (typeof window !== "undefined" &&
-        (localStorage.getItem("token") || localStorage.getItem("auth_token"))) ||
-      ""
+    const readToken = () =>
+      (localStorage.getItem("token") || localStorage.getItem("auth_token") || "") as string
+
+    const t = readToken()
     setToken(t)
     setMounted(true)
-  }, [])
 
-  // fetch server cart if logged in
-  const fetchServerCart = useCallback(async () => {
-    if (!token) return null
-    const res = await fetch("/api/cart", { headers: { Authorization: `Bearer ${token}` } })
+    if (!t) {
+      try {
+        localStorage.removeItem(CART_STORAGE_KEY)
+      } catch {}
+      localClear()
+    }
+
+    // react to log-in/out in this tab and other tabs
+    const onAuthChanged = () => {
+      const nt = readToken()
+      setToken(nt)
+      if (!nt) {
+        try {
+          localStorage.removeItem(CART_STORAGE_KEY)
+        } catch {}
+        localClear()
+        setServerSnap(null)
+      } else {
+        // refetch when just logged in
+        fetchServerCart(nt).catch(() => {})
+      }
+    }
+
+    window.addEventListener("auth-changed", onAuthChanged)
+    window.addEventListener("storage", onAuthChanged)
+    return () => {
+      window.removeEventListener("auth-changed", onAuthChanged)
+      window.removeEventListener("storage", onAuthChanged)
+    }
+  }, [localClear])
+
+  const fetchServerCart = useCallback(async (tok = token) => {
+    if (!tok) return null
+    const res = await fetch("/api/cart", { headers: { Authorization: `Bearer ${tok}` } })
     const data: ServerSnapshot = await res.json()
     if (!res.ok || data?.ok === false) throw new Error(data?.error || "Failed to load cart")
     setServerSnap(data)
+    // optional sync into zustand (not used for rendering)
     // @ts-ignore
     useCart.getState().setFromServer?.(data.lines)
     return data
@@ -100,30 +125,15 @@ export default function CartPage() {
     }
   }, [serverMode, fetchServerCart])
 
-  // compute local subtotal with a hook UNCONDITIONALLY
-  const localSubtotalMemo = useMemo(() => localSubtotal(), [localLines, localSubtotal])
-
-  // Normalize lines for rendering (no hook conditionals)
-  const renderLines: ServerLine[] = serverMode
-    ? serverSnap?.lines || []
-    : localLines.map((l: any) => ({
-        id: l.item?.id ?? l.id, // local line id fallback
-        itemId: l.item?.id ?? l.itemId ?? l.id,
-        title: l.item?.title ?? l.title ?? "Item",
-        price: Number(l.item?.price ?? l.price ?? 0),
-        currency: (l.item?.currency ?? l.currency ?? "INR") as string,
-        imageUrl: l.item?.imageUrl ?? l.imageUrl ?? null,
-        qty: Number(l.qty ?? 1),
-        displayPrice: l.item?.displayPrice ?? l.displayPrice,
-      }))
-
-  const subtotalNumber = serverMode ? serverSnap?.subtotal ?? 0 : localSubtotalMemo
+  // when logged out, show empty
+  const renderLines: ServerLine[] = serverMode ? serverSnap?.lines || [] : []
+  const subtotalNumber = serverMode ? serverSnap?.subtotal ?? 0 : 0
   const subtotalText = formatCurrency(subtotalNumber, "INR")
 
-  // mutation handlers (server vs local) — defensive sync, no conditional hooks
   const setQty = async (itemId: string, qty: number) => {
     if (!serverMode) {
-      localSetQty(itemId, qty)
+      toast.message("Please log in to edit your cart.")
+      router.push("/login?redirect=/cart")
       return
     }
     try {
@@ -134,14 +144,9 @@ export default function CartPage() {
       })
       const data: ServerSnapshot = await res.json()
       if (!res.ok || data?.ok === false) throw new Error(data?.error || "Failed to update line")
-
-      if (Array.isArray(data?.lines)) {
-        setServerSnap(data)
-        // @ts-ignore
-        useCart.getState().setFromServer?.(data.lines)
-      } else {
-        await fetchServerCart() // ⬅️ recover if API didn't include snapshot
-      }
+      setServerSnap(data)
+      // @ts-ignore
+      useCart.getState().setFromServer?.(data.lines)
     } catch (e: any) {
       toast.error(e?.message || "Failed to update quantity")
     }
@@ -149,7 +154,8 @@ export default function CartPage() {
 
   const remove = async (itemId: string) => {
     if (!serverMode) {
-      localRemove(itemId)
+      toast.message("Please log in to edit your cart.")
+      router.push("/login?redirect=/cart")
       return
     }
     try {
@@ -159,14 +165,9 @@ export default function CartPage() {
       })
       const data: ServerSnapshot = await res.json()
       if (!res.ok || data?.ok === false) throw new Error(data?.error || "Failed to remove item")
-
-      if (Array.isArray(data?.lines)) {
-        setServerSnap(data)
-        // @ts-ignore
-        useCart.getState().setFromServer?.(data.lines)
-      } else {
-        await fetchServerCart()
-      }
+      setServerSnap(data)
+      // @ts-ignore
+      useCart.getState().setFromServer?.(data.lines)
     } catch (e: any) {
       toast.error(e?.message || "Failed to remove item")
     }
@@ -174,7 +175,8 @@ export default function CartPage() {
 
   const clear = async () => {
     if (!serverMode) {
-      localClear()
+      toast.message("Please log in to edit your cart.")
+      router.push("/login?redirect=/cart")
       return
     }
     try {
@@ -184,26 +186,25 @@ export default function CartPage() {
       })
       const data: ServerSnapshot = await res.json()
       if (!res.ok || data?.ok === false) throw new Error(data?.error || "Failed to clear cart")
-
-      if (Array.isArray(data?.lines)) {
-        setServerSnap(data)
-        // @ts-ignore
-        useCart.getState().setFromServer?.(data.lines)
-      } else {
-        await fetchServerCart()
-      }
+      setServerSnap(data)
+      // @ts-ignore
+      useCart.getState().setFromServer?.(data.lines)
     } catch (e: any) {
       toast.error(e?.message || "Failed to clear cart")
     }
   }
 
   const onCheckout = () => {
+    if (!serverMode) {
+      toast.message("Please log in to checkout.")
+      router.push("/login?redirect=/checkout")
+      return
+    }
     if (!renderLines.length) {
       toast.error("Your cart is empty")
       return
     }
-    toast.success("Proceeding to checkout (stub)")
-    // TODO: navigate to /checkout or create payment session
+    router.push("/checkout")
   }
 
   return (
@@ -213,10 +214,16 @@ export default function CartPage() {
           <CardHeader className="pb-2">
             <CardTitle>Your Cart</CardTitle>
           </CardHeader>
-
           <CardContent className="space-y-4">
             {!mounted ? (
-              <div className="text-center py-10 text-slate-600">Loading cart…</div>
+              <div className="text-center py-10 text-slate-600">Loading…</div>
+            ) : !serverMode ? (
+              <div className="text-center py-10">
+                <p className="text-slate-600 mb-3">You’re not logged in.</p>
+                <Link href="/login?redirect=/cart" className="text-blue-600 hover:underline">
+                  Log in to view your cart
+                </Link>
+              </div>
             ) : !renderLines.length ? (
               <div className="text-center py-10">
                 <p className="text-slate-600">Your cart is empty.</p>
@@ -228,7 +235,10 @@ export default function CartPage() {
               renderLines.map((line) => {
                 const unitPriceText =
                   line.displayPrice ?? formatCurrency(line.price, line.currency ?? "INR")
-                const lineTotalText = formatCurrency((Number(line.price) || 0) * line.qty, line.currency ?? "INR")
+                const lineTotalText = formatCurrency(
+                  (Number(line.price) || 0) * line.qty,
+                  line.currency ?? "INR"
+                )
 
                 const dec = () => setQty(line.itemId, Math.max(1, line.qty - 1))
                 const inc = () => setQty(line.itemId, Math.min(99, line.qty + 1))
@@ -302,7 +312,7 @@ export default function CartPage() {
             )}
           </CardContent>
 
-          {!!renderLines.length && mounted && (
+          {!!renderLines.length && mounted && serverMode && (
             <CardFooter className="justify-end">
               <Button variant="outline" onClick={clear} className="rounded-xl">
                 Clear cart
@@ -321,7 +331,7 @@ export default function CartPage() {
             <div className="flex justify-between">
               <span>Subtotal</span>
               <span className="font-semibold" suppressHydrationWarning>
-                {mounted ? subtotalText : "—"}
+                {serverMode ? subtotalText : "—"}
               </span>
             </div>
             <div className="flex justify-between text-slate-600">
@@ -332,13 +342,13 @@ export default function CartPage() {
             <div className="flex justify-between text-lg">
               <span>Total</span>
               <span className="font-bold" suppressHydrationWarning>
-                {mounted ? subtotalText : "—"}
+                {serverMode ? subtotalText : "—"}
               </span>
             </div>
           </CardContent>
           <CardFooter>
             <Button className="w-full rounded-xl" onClick={onCheckout}>
-              Checkout
+              {serverMode ? "Checkout" : "Log in to checkout"}
             </Button>
           </CardFooter>
         </Card>

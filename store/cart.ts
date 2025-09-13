@@ -1,106 +1,94 @@
-/* eslint-disable @typescript-eslint/ban-ts-comment */
 /* eslint-disable @typescript-eslint/no-explicit-any */
-'use client'
+"use client";
 
-import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
-import type { CartLine, Item } from '@/types'
+import { create } from "zustand";
+import { persist, createJSONStorage } from "zustand/middleware";
+
+export type Item = {
+  id: string;
+  title: string;
+  price: number;
+  currency?: string;
+  imageUrl?: string | null;
+  displayPrice?: string;
+};
+
+export type CartLine = { item: Item; qty: number };
 
 type CartState = {
-  lines: CartLine[]                           // [{ item: Item, qty: number }]
-  add: (item: Item, qty?: number) => void
-  remove: (itemId: string) => void
-  setQty: (itemId: string, qty: number) => void
-  clear: () => void
-  subtotal: () => number
+  lines: CartLine[];
+  add: (item: Item, qty?: number) => void;
+  remove: (id: string) => void;
+  setQty: (id: string, qty: number) => void;
+  clear: () => void;
+  /** wipes memory + localStorage (prevents “last item” ghosting) */
+  hardClear: () => void;
+  /** optional: sync from server snapshot */
+  setFromServer?: (lines: Array<{ itemId: string; title: string; price: number; currency?: string; imageUrl?: string | null; qty: number }>) => void;
+  subtotal: () => number;
+};
 
-  /** Replace local cart from server snapshot; ignores bad/undefined input */
-  setFromServer: (serverLines?: any[]) => void
-}
-
-/* ---------- helpers ---------- */
-const clampQty = (n: number) => Math.max(1, Math.min(99, Math.trunc(Number(n) || 0)))
-const safePrice = (p: unknown) => {
-  const n = typeof p === 'string' ? parseFloat(p) : (typeof p === 'number' ? p : 0)
-  return Number.isFinite(n) ? n : 0
-}
+const CART_STORAGE_KEY = "bazario-cart";
 
 export const useCart = create<CartState>()(
   persist(
     (set, get) => ({
       lines: [],
-
-      add: (item, qty = 1) =>
-        set((state) => {
-          const q = clampQty(qty)
-          const idx = state.lines.findIndex((l) => l.item.id === item.id)
+      add: (item: { id: any; }, qty = 1) =>
+        set((state: { lines: any[]; }) => {
+          const idx = state.lines.findIndex((l: { item: { id: any; }; }) => l.item.id === item.id);
           if (idx >= 0) {
-            const next = [...state.lines]
-            next[idx] = { ...next[idx], qty: clampQty(next[idx].qty + q) }
-            return { lines: next }
+            const next = [...state.lines];
+            next[idx] = { ...next[idx], qty: Math.min(99, next[idx].qty + qty) };
+            return { lines: next };
           }
-          return { lines: [...state.lines, { item, qty: q }] }
+          return { lines: [...state.lines, { item, qty: Math.min(99, qty) }] };
         }),
-
-      remove: (itemId) =>
-        set((state) => ({ lines: state.lines.filter((l) => l.item.id !== itemId) })),
-
-      setQty: (itemId, qty) =>
-        set((state) => {
-          const q = clampQty(qty)
-          const idx = state.lines.findIndex((l) => l.item.id === itemId)
-          if (idx < 0) return { lines: state.lines }
-          const next = [...state.lines]
-          next[idx] = { ...next[idx], qty: q }
-          return { lines: next }
+      remove: (id: any) => set((state: { lines: any[]; }) => ({ lines: state.lines.filter((l: { item: { id: any; }; }) => l.item.id !== id) })),
+      setQty: (id: any, qty: number) =>
+        set((state: { lines: any[]; }) => {
+          const q = Math.max(0, Math.min(99, qty));
+          if (q === 0) return { lines: state.lines.filter((l: { item: { id: any; }; }) => l.item.id !== id) };
+          return { lines: state.lines.map((l: { item: { id: any; }; }) => (l.item.id === id ? { ...l, qty: q } : l)) };
         }),
-
       clear: () => set({ lines: [] }),
-
-      subtotal: () =>
-        get().lines.reduce((sum, l) => sum + safePrice(l.item.price) * (l.qty || 0), 0),
-
-      // ✅ only set when it's an actual array; otherwise no-op (prevents wipes)
-      setFromServer: (serverLines) => {
-        if (!Array.isArray(serverLines)) return
-
-        // Normalize possible server shapes to local { item, qty }
-        const mapped: CartLine[] = []
-        for (const s of serverLines) {
-          try {
-            if (s?.item && s?.item?.id) {
-              // already local-like
-              const itm: Item = {
-                id: String(s.item.id),
-                title: String(s.item.title ?? 'Item'),
-                price: safePrice(s.item.price),
-                currency: String(s.item.currency ?? 'INR'),
-                imageUrl: s.item.imageUrl ?? null,
-                //@ts-ignore
-                displayPrice: s.item.displayPrice,
-              }
-              mapped.push({ item: itm, qty: clampQty(s.qty ?? 1) })
-            } else if (s?.itemId) {
-              const itm: Item = {
-                id: String(s.itemId),
-                title: String(s.title ?? 'Item'),
-                price: safePrice(s.price),
-                currency: String(s.currency ?? 'INR'),
-                imageUrl: s.imageUrl ?? null,
-                //@ts-ignore
-                displayPrice: s.displayPrice,
-              }
-              mapped.push({ item: itm, qty: clampQty(s.qty ?? 1) })
-            }
-          } catch {
-            // ignore bad rows
-          }
-        }
-
-        if (mapped.length) set({ lines: mapped })
-        // if mapping produced nothing, keep current cart as-is
+      hardClear: () => {
+        set({ lines: [] });
+        try {
+          // nuke persisted snapshot to avoid stale rehydration
+          localStorage.removeItem(CART_STORAGE_KEY);
+        } catch {}
       },
+      setFromServer: (serverLines: any) =>
+        set({
+          lines: (serverLines || []).map((s: { itemId: any; title: any; price: any; currency: any; imageUrl: any; qty: any; }) => ({
+            item: {
+              id: s.itemId,
+              title: s.title,
+              price: Number(s.price || 0),
+              currency: (s.currency || "INR") as string,
+              imageUrl: s.imageUrl ?? null,
+            },
+            qty: Number(s.qty || 1),
+          })),
+        }),
+      subtotal: () =>
+        get().lines.reduce((sum: number, l: { item: { price: any; }; qty: number; }) => {
+          const price = typeof l.item.price === "string" ? parseFloat(l.item.price as any) : l.item.price;
+          return sum + (Number(price) || 0) * l.qty;
+        }, 0),
     }),
-    { name: 'bazario-cart' } // persisted key
+    {
+      name: CART_STORAGE_KEY,
+      storage: createJSONStorage(() => localStorage),
+      version: 2,
+      // ensure we only restore 'lines' from disk
+      partialize: (state) => ({ lines: state.lines }),
+      // replace lines on rehydrate (prevents merge ghosts)
+      merge: (persisted: any, current: any) => ({
+        ...current,
+        lines: Array.isArray(persisted?.lines) ? persisted.lines : current.lines,
+      }),
+    }
   )
-)
+);
